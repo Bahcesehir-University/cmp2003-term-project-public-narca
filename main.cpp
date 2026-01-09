@@ -1,96 +1,53 @@
 #include <iostream>
-#include <fstream>
 #include <string>
 #include <unordered_map>
 #include <vector>
 #include <algorithm>
 #include <queue>
-#include <sstream>
-#include <iomanip>
 
 using namespace std;
 
 struct ZoneStats {
-    long long count = 0;
-    long long hours[24] = {0};
+    int count = 0;                 
+    vector<int> hours;            
+
+    ZoneStats() : count(0), hours(24, 0) {}
 };
 
-struct ZoneCount {
+struct PickupZone {
     string zone;
-    long long count;
+    int count;
 };
 
-struct SlotCount {
+struct BusiestSlot {
     string zone;
     int hour;
-    long long count;
+    int count;
 };
 
 
 class TripAnalyzer {
-private:
-    unordered_map<string, ZoneStats> zoneData;
-    
-    void processLine(const string& line) {
-        if (line.empty()) return;
-        
-        size_t p1 = line.find(',');
-        if (p1 == string::npos) return;
-        
-        size_t p2 = line.find(',', p1 + 1);
-        if (p2 == string::npos) return;
-        
-        size_t p3 = line.find(',', p2 + 1);
-        if (p3 == string::npos) return;
-        
-        size_t p4 = line.find(',', p3 + 1);
-        if (p4 == string::npos) return;
-        
-        size_t p5 = line.find(',', p4 + 1);
-        if (p5 == string::npos) return;
-        
-        string pickup_zone = line.substr(p1 + 1, p2 - p1 - 1);
-        if (pickup_zone.empty()) return;
-        
-        string pickup_time = line.substr(p3 + 1, p4 - p3 - 1);
-        if (pickup_time.empty()) return;
-        
-        tm t{};
-        istringstream ss(pickup_time);
-        ss >> get_time(&t, "%Y-%m-%d %H:%M");
-        
-        if (ss.fail()) return;
-        if (t.tm_hour < 0 || t.tm_hour > 23) return;
-        
-        ZoneStats &stats = zoneData[pickup_zone];
-        stats.count++;
-        stats.hours[t.tm_hour]++;
-    }
-
 public:
-    void ingestFile(const string& path) {
-        ifstream file(path);
-        if (!file.is_open()) return;
-        
-        string line;
-        while (getline(file, line)) {
-            processLine(line);
-        }
-    }
+    void ingestStdin();
+
+    unordered_map<string, ZoneStats> zoneData;
+
     
-    vector<ZoneCount> topZones(int k=10) {
-        auto comparing_function = [](const ZoneCount &zone1, const ZoneCount &zone2) {
+    vector<PickupZone> topZones() {
+
+        auto comparing_function = [](const PickupZone &zone1, const PickupZone &zone2) {
             if (zone1.count != zone2.count)
                 return zone1.count > zone2.count;        
             return zone1.zone < zone2.zone;             
         };
 
-        priority_queue<ZoneCount, vector<ZoneCount>, decltype(comparing_function)> pq(comparing_function);
+        priority_queue<PickupZone, vector<PickupZone>, decltype(comparing_function)> pq(comparing_function);
        
         for (const auto &zd : zoneData) {
-            ZoneCount cur{zd.first, zd.second.count};
+            
+            PickupZone cur{zd.first, zd.second.count};
 
-            if ((int)pq.size() < k) {
+            if ((int)pq.size() < 10) {
                 pq.push(cur);
             } 
             else if (comparing_function(cur, pq.top())) {
@@ -99,7 +56,7 @@ public:
             }
         }
 
-        vector<ZoneCount> result;
+        vector<PickupZone> result;
         result.reserve(pq.size());
 
         while (!pq.empty()) {
@@ -111,46 +68,108 @@ public:
         return result;
     }
 
-    vector<SlotCount> topBusySlots(int k=10) {
-        auto comparing_function = [](const SlotCount &slot1, const SlotCount &slot2) {
-            if (slot1.count != slot2.count)
-                return slot1.count > slot2.count;           
-            if (slot1.zone != slot2.zone)
-                return slot1.zone < slot2.zone;             
-            return slot1.hour < slot2.hour;                
-        };
+vector<BusiestSlot> topBusySlots() {
 
-        priority_queue<SlotCount, vector<SlotCount>, decltype(comparing_function)> pq(comparing_function);
+    auto comparing_function = [](const BusiestSlot &slot1, const BusiestSlot &slot2) {
+        if (slot1.count != slot2.count)
+            return slot1.count > slot2.count;           
+        if (slot1.zone != slot2.zone)
+            return slot1.zone < slot2.zone;             
+        return slot1.hour > slot2.hour;                
+    };
 
-        for (const auto &zd : zoneData) {
-            const string &zone = zd.first;
-            const long long* hours = zd.second.hours;
+    priority_queue<BusiestSlot, vector<BusiestSlot>, decltype(comparing_function)> pq(comparing_function);
 
-            for (int h = 0; h < 24; h++) {
-                long long c = hours[h];
-                if (c == 0) continue;
+    for (const auto &zd : zoneData) {
+        const string &zone = zd.first;
+        const auto &hours = zd.second.hours;
 
-                SlotCount cur{zone, h, c};
+        for (int h = 0; h < 24; ++h) {
+            int c = hours[h];
+            if (c == 0) continue;
 
-                if ((int)pq.size() < k) {
-                    pq.push(cur);
-                } 
-                else if (comparing_function(cur, pq.top())) {
-                    pq.pop();
-                    pq.push(cur);
-                }
+            BusiestSlot cur{zone, h, c};
+
+            if ((int)pq.size() < 10) {
+                pq.push(cur);
+            } 
+            else if (comparing_function(cur, pq.top())) {
+                pq.pop();
+                pq.push(cur);
             }
         }
+    }
 
-        vector<SlotCount> result;
-        result.reserve(pq.size());
+    vector<BusiestSlot> result;
+    result.reserve(pq.size());
 
-        while (!pq.empty()) {
-            result.push_back(pq.top());
-            pq.pop();
+    while (!pq.empty()) {
+        result.push_back(pq.top());
+        pq.pop();
+    }
+
+    reverse(result.begin(), result.end());
+    return result;
+}
+
+
+};
+
+void TripAnalyzer::ingestStdin() {
+    string line;
+    
+    while (getline(cin, line)) {
+        size_t pos1 = line.find(',');           
+        if (pos1 == string::npos) continue;
+
+        size_t pos2 = line.find(',', pos1 + 1); 
+        if (pos2 == string::npos) continue;
+
+        string pickup_zone = line.substr(pos1 + 1, pos2 - pos1 - 1);
+        if (pickup_zone.empty()) continue;
+        
+        size_t pos3 = line.find(',', pos2 + 1); 
+        if (pos3 == string::npos) continue;
+
+        size_t pos4 = line.find(',', pos3 + 1); 
+        if (pos4 == string::npos) continue;
+
+        string pickup_date_time = line.substr(pos3 + 1, pos4 - pos3 - 1);
+
+        if (pickup_date_time.size() < 16) 
+        {
+            continue;
         }
 
-        reverse(result.begin(), result.end());
-        return result;
+        int hour;
+        try{
+            hour = stoi(pickup_date_time.substr(11, 2));
+        }
+        catch(...){
+            continue;
+        }
+        if (hour < 0 || hour > 23) continue;
+
+        ZoneStats &stats = zoneData[pickup_zone];
+        stats.count++;
+        stats.hours[hour]++;
     }
-};
+}
+
+int main() {
+    TripAnalyzer analyzer;
+
+    analyzer.ingestStdin();
+    
+    cout << "TOP_ZONES\n";
+    for (auto& z : analyzer.topZones())
+        cout << z.zone << "," << z.count << "\n";
+    
+    cout << "TOP_SLOTS\n";
+    for (auto& s : analyzer.topBusySlots())
+        cout << s.zone << "," << s.hour << "," << s.count << "\n";
+
+    return 0;
+}   
+
+
