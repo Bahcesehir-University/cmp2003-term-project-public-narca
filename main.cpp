@@ -170,6 +170,4 @@ int main() {
         cout << s.zone << "," << s.hour << "," << s.count << "\n";
 
     return 0;
-}   
-
-
+}
