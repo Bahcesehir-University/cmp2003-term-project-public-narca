@@ -21,34 +21,36 @@ void TripAnalyzer::ingestFile(const string& path) {
     getline(file, line);
 
     while (getline(file, line)) {
-        if (line.empty()) return;
-        
-        size_t p1 = line.find(',');
-        if (p1 == string::npos) continue;
-        
-        size_t p2 = line.find(',', p1 + 1);
-        if (p2 == string::npos) continue;
-      
-        string id = line.substr(0, p1);
-        
-        try{
-            stoi(id);
+  
+        if (line.empty()) continue;
+
+        vector<string> cols;
+        string token;
+        istringstream ss(line);
+
+        while (getline(ss, token, ',')) {
+            cols.push_back(token);
+        }
+
+        if (cols.size() < 6) continue;
+
+        try {
+            stoi(cols[0]);
         } catch (...) {
             continue;
         }
-        
-        string pickup_zone = line.substr(p1 + 1, p2 - p1 - 1);
-        if (pickup_zone.empty()) continue;
-        
-        string pickup_time = line.substr(p2 + 1);
-        if (pickup_time.empty()) continue;
-        
+
+        if (cols[1].empty() || cols[2].empty() || cols[3].empty() || cols[4].empty() || cols[5].empty()) continue;
+
+        const string& pickup_zone = cols[1];
+        const string& pickup_time = cols[3];
+
         tm t{};
-        istringstream ss(pickup_time);
-        ss >> get_time(&t, "%Y-%m-%d %H:%M");
-        
-        if (ss.fail()) continue;
-        if (t.tm_hour < 0 || t.tm_hour > 23) continue;
+        istringstream ts(pickup_time);
+        ts >> get_time(&t, "%Y-%m-%d %H:%M");
+
+        if (ts.fail()) continue;
+        if (t.tm_hour < 0 || t.tm_hour > 23) continue;;
         
         ZoneStats &stats = zoneData[pickup_zone];
         stats.count++;
