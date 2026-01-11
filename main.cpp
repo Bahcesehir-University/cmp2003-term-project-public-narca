@@ -29,4 +29,3 @@ int main() {
     std::cout << "EXEC_MS\n" << ms << "\n";
     return 0;
 }
-
